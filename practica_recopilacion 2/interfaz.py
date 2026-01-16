@@ -10,7 +10,7 @@ import operaciones_morfologicas as om
 import segmentacion as seg
 import fourier
 import edges
-import filtros
+import ruido_y_filtros as rf
 import morfologia_binaria as mb
 import morfologia_lattice as ml
 
@@ -27,6 +27,8 @@ class Aplicacion:
         self.imagen_secundaria = None
         self.kernel_morfologico = "3x3 cuadrado"
         self.imagen_patron = None
+        self.filtro_var = tk.StringVar(value="NINGUNO")
+
 
         self.operaciones_binarias = [
             "Erosión", "Dilatación", "Apertura", "Cierre",
@@ -37,6 +39,8 @@ class Aplicacion:
             "Erosión", "Dilatación", "Apertura",
             "Cierre", "Gradiente"
         ]
+        
+
 
         self.configurar_estilos()
         self.crear_interfaz()
@@ -93,7 +97,7 @@ class Aplicacion:
         header.pack_propagate(False)
         
         ##itle_label = tk.Label(header, text="🎨 VISION LAB", 
-          #                    font=('Segoe UI', 24, 'bold'),
+          #                  font=('Segoe UI', 24, 'bold'),
            #                   fg='#00d4ff', bg='#1e1e2e')
         #title_label.pack(side=tk.LEFT, padx=20, pady=10)
         
@@ -115,15 +119,10 @@ class Aplicacion:
         
         # Configurar grid para layout responsivo
         workspace.grid_rowconfigure(0, weight=1)
-        workspace.grid_columnconfigure(0, weight=0, minsize=280)  # Izquierda: tamaño fijo
+        #workspace.grid_columnconfigure(0, weight=0, minsize=280)  # Izquierda: tamaño fijo
         workspace.grid_columnconfigure(1, weight=1)                # Centro: expansible
-        workspace.grid_columnconfigure(2, weight=0, minsize=300)  # Derecha: tamaño fijo
+        workspace.grid_columnconfigure(2, weight=0, minsize=600)  # Derecha: tamaño fijo
         
-        # COLUMNA IZQUIERDA - Herramientas
-        left_panel = tk.Frame(workspace, bg='#1e1e2e', width=280)
-        left_panel.grid(row=0, column=0, sticky='nsew', padx=(0, 10))
-        
-        self.crear_panel_herramientas(left_panel)
         
         # COLUMNA CENTRAL - Visualización
         center_panel = tk.Frame(workspace, bg='#1e1e2e')
@@ -199,56 +198,13 @@ class Aplicacion:
         canvas.create_window((0, 0), window=scrollable_frame, anchor='nw')
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # CARD: Transformaciones de Color
-        color_content = self.crear_card(scrollable_frame, "🎨 Color & Filtros")
         
-        self.crear_boton_tool(color_content, "▸ Escala de Grises", self.grises)
-        self.crear_boton_tool(color_content, "▸ Binarizar (128)", self.binarizar)
-        self.crear_boton_tool(color_content, "▸ Binarizar Custom", self.binarizar_con_umbral)
-        
-        tk.Label(color_content, text="Espacio de color:", 
-                fg='#000000', bg='#2a2a3e', 
-                font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W, pady=(10, 3))
-        
-        self.modelo_var = tk.StringVar(value="RGB")
-        for modelo in ["RGB", "RGB_CANALES", "CMYK", "HSV", "PSEUDOCOLOR_PASTEL", "PSEUDOCOLOR_TIERRA", "PSEUDOCOLOR_FRIOS"]:
-            rb = tk.Radiobutton(color_content, text=modelo, variable=self.modelo_var,
-                               value=modelo, command=self.cambiar_modelo_color,
-                               bg='#2a2a3e', fg=self.colores['text_color'], 
-                               selectcolor='#3a3a4e',
-                               activebackground='#2a2a3e', activeforeground='#00d4ff',
-                               font=('Segoe UI', 9, 'bold'))  # Bold para mejor visibilidad
-            rb.pack(anchor=tk.W, padx=5, pady=2)
-        
-        # CARD: Operaciones Lógicas
-        logic_content = self.crear_card(scrollable_frame, "⚡ Operaciones Lógicas")
-        
-        self.crear_boton_tool(logic_content, "📂 Cargar 2ª Imagen", self.cargar_secundaria)
-        
-        ops_frame = tk.Frame(logic_content, bg='#2a2a3e')
-        ops_frame.pack(fill=tk.X, pady=5)
-        
-        for op in ["AND", "OR", "XOR", "NOT"]:
-            tk.Button(ops_frame, text=op, 
-                     command=lambda o=op: self.operacion_logica(o),
-                     bg='#4a4a5e', fg='#000000', font=('Segoe UI', 8, 'bold'),
-                     relief='flat', cursor='hand2', width=6, pady=5).pack(side=tk.LEFT, padx=2)
-        
-        # CARD: Análisis de Regiones
-        region_content = self.crear_card(scrollable_frame, "🔍 Análisis")
-        etiq_content = self.crear_card(scrollable_frame, "🔖 Etiquetado")
 
-        self.crear_boton_tool(region_content, "▸ Extracción por Umbral", self.extraccion_umbral)
-        self.crear_boton_tool(region_content, "▸ Etiquetar Regiones", self.etiquetar_regiones)
-        self.crear_boton_tool(etiq_content,"Reconocer Patrón", self.etiquetar_patron)
-
-       
+    
 
         
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.crear_boton_tool(etiq_content, "📂 Cargar Patrón", self.cargar_patron)
+
 
     def cargar_patron(self):
         ruta = filedialog.askopenfilename(
@@ -262,45 +218,62 @@ class Aplicacion:
                 messagebox.showerror("❌ Error", "No se pudo cargar la imagen patrón")
 
     def crear_panel_visualizacion(self, parent):
-        # Vista dividida horizontal con grid responsivo
-        parent.grid_rowconfigure(0, weight=0)  # Título
-        parent.grid_rowconfigure(1, weight=1)  # Imágenes
-        parent.grid_columnconfigure(0, weight=1)
-        
-        tk.Label(parent, text="Vista Comparativa", 
-                font=('Segoe UI', 14, 'bold'),
-                fg='#00d4ff', bg='#1e1e2e').grid(row=0, column=0, pady=(0, 15), sticky='w')
-        
-        view_container = tk.Frame(parent, bg='#1e1e2e')
-        view_container.grid(row=1, column=0, sticky='nsew')
-        
-        # Grid para las dos imágenes
-        view_container.grid_rowconfigure(0, weight=1)
-        view_container.grid_columnconfigure(0, weight=1)
-        view_container.grid_columnconfigure(1, weight=1)
-        
+        # Crear un Canvas con Scrollbar
+        canvas = tk.Canvas(parent, bg='#1e1e2e', highlightthickness=0)
+        scrollbar = tk.Scrollbar(parent, orient='vertical', command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg='#1e1e2e')
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+
+        # Configurar grid para las imágenes
+        scrollable_frame.grid_rowconfigure(0, weight=1)  # Fila para la imagen original
+        scrollable_frame.grid_rowconfigure(1, weight=1)  # Fila para la imagen procesada
+        scrollable_frame.grid_rowconfigure(2, weight=1)  # Fila para la imagen secundaria
+        scrollable_frame.grid_columnconfigure(0, weight=1)  # Una sola columna
+
         # Imagen Original
-        orig_card = tk.Frame(view_container, bg='#2a2a3e')
-        orig_card.grid(row=0, column=0, sticky='nsew', padx=(0, 5))
-        
+        orig_card = tk.Frame(scrollable_frame, bg='#2a2a3e')
+        orig_card.grid(row=0, column=0, sticky='nsew', padx=10, pady=5)
+
         tk.Label(orig_card, text="ORIGINAL", 
                 font=('Segoe UI', 10, 'bold'),
                 fg='#888888', bg='#2a2a3e').pack(pady=10)
-        
-        self.label_original = tk.Label(orig_card, bg='#1a1a2a')
-        self.label_original.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
-        
+
+        self.label_original = tk.Label(orig_card, bg='#1a1a2a', anchor='center')
+        self.label_original.pack(fill=tk.NONE, expand=True, padx=15, pady=(0, 15))
+
         # Imagen Procesada
-        proc_card = tk.Frame(view_container, bg='#2a2a3e')
-        proc_card.grid(row=0, column=1, sticky='nsew', padx=(5, 0))
-        
+        proc_card = tk.Frame(scrollable_frame, bg='#2a2a3e')
+        proc_card.grid(row=1, column=0, sticky='nsew', padx=10, pady=5)
+
         tk.Label(proc_card, text="PROCESADA", 
                 font=('Segoe UI', 10, 'bold'),
                 fg='#00d4ff', bg='#2a2a3e').pack(pady=10)
-        
-        self.label_procesada = tk.Label(proc_card, bg='#1a1a2a')
-        self.label_procesada.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
-    
+
+        self.label_procesada = tk.Label(proc_card, bg='#1a1a2a', anchor='center')
+        self.label_procesada.pack(fill=tk.NONE, expand=True, padx=15, pady=(0, 15))
+
+        # Imagen Secundaria
+        sec_card = tk.Frame(scrollable_frame, bg='#2a2a3e')
+        sec_card.grid(row=2, column=0, sticky='nsew', padx=10, pady=5)
+
+        tk.Label(sec_card, text="SECUNDARIA", 
+                font=('Segoe UI', 10, 'bold'),
+                fg='#ff8800', bg='#2a2a3e').pack(pady=10)
+
+        self.label_secundaria = tk.Label(sec_card, bg='#1a1a2a', anchor='center')
+        self.label_secundaria.pack(fill=tk.NONE, expand=True, padx=15, pady=(0, 15))
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+
     def crear_panel_configuracion(self, parent):
         # Canvas con scroll vertical Y horizontal
         canvas = tk.Canvas(parent, bg='#1e1e2e', highlightthickness=0)
@@ -318,6 +291,20 @@ class Aplicacion:
                 font=('Segoe UI', 14, 'bold'),
                 fg='#00d4ff', bg='#1e1e2e').pack(pady=(0, 15))
         
+        # CARD: Operaciones Lógicas
+        logic_content = self.crear_card(scrollable_frame, "⚡ Operaciones Lógicas")
+        
+        self.crear_boton_tool(logic_content, "📂 Cargar 2ª Imagen", self.cargar_secundaria)
+        
+        ops_frame = tk.Frame(logic_content, bg='#2a2a3e')
+        ops_frame.pack(fill=tk.X, pady=5)
+        
+        for op in ["AND", "OR", "XOR", "NOT"]:
+            tk.Button(ops_frame, text=op, 
+                     command=lambda o=op: self.operacion_logica(o),
+                     bg='#4a4a5e', fg='#000000', font=('Segoe UI', 8, 'bold'),
+                     relief='flat', cursor='hand2', width=6, pady=5).pack(side=tk.LEFT, padx=2)
+
         # CARD: Morfología
         morph_content = self.crear_card(scrollable_frame, "🧬 Morfología")
         tk.Label(morph_content, text="Tipo de Morfología",
@@ -378,6 +365,47 @@ class Aplicacion:
         apply_btn.bind('<Enter>', lambda e: e.widget.config(bg='#00b8e6'))
         apply_btn.bind('<Leave>', lambda e: e.widget.config(bg='#00d4ff'))
         
+
+        # CARD: Transformaciones de Color
+        color_content = self.crear_card(scrollable_frame, "🎨 Color & Filtros")
+        
+        self.crear_boton_tool(color_content, "▸ Escala de Grises", self.grises)
+        self.crear_boton_tool(color_content, "▸ Binarizar (128)", self.binarizar)
+        self.crear_boton_tool(color_content, "▸ Binarizar Custom", self.binarizar_con_umbral)
+        
+        tk.Label(color_content, text="Espacio de color:", 
+                fg='#000000', bg='#2a2a3e', 
+                font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W, pady=(10, 3))
+        
+        self.modelo_var = tk.StringVar(value="RGB")
+        for modelo in ["RGB", "RGB_CANALES", "CMYK", "HSV", "PSEUDOCOLOR_PASTEL", "PSEUDOCOLOR_TIERRA", "PSEUDOCOLOR_FRIOS"]:
+            rb = tk.Radiobutton(color_content, text=modelo, variable=self.modelo_var,
+                               value=modelo, command=self.cambiar_modelo_color,
+                               bg='#2a2a3e', fg=self.colores['text_color'], 
+                               selectcolor='#3a3a4e',
+                               activebackground='#2a2a3e', activeforeground='#00d4ff',
+                               font=('Segoe UI', 9, 'bold'))  # Bold para mejor visibilidad
+            rb.pack(anchor=tk.W, padx=5, pady=2)
+        
+        
+        
+        # CARD: Análisis de Regiones
+        region_content = self.crear_card(scrollable_frame, "🔍 Análisis")
+        etiq_content = self.crear_card(scrollable_frame, "🔖 Etiquetado")
+
+        self.crear_boton_tool(region_content, "▸ Extracción por Umbral", self.extraccion_umbral)
+        self.crear_boton_tool(region_content, "▸ Etiquetar Regiones", self.etiquetar_regiones)
+        self.crear_boton_tool(etiq_content,"Reconocer Patrón", self.etiquetar_patron)
+       
+
+        canvas.grid(row=0, column=0, sticky='nsew')
+        scrollbar_v.grid(row=0, column=1, sticky='ns')
+        scrollbar_h.grid(row=1, column=0, sticky='ew')
+
+
+        
+
+        self.crear_boton_tool(etiq_content, "📂 Cargar Patrón", self.cargar_patron)
         # CARD: Segmentación
         seg_content = self.crear_card(scrollable_frame, "✂️ Segmentación")
         
@@ -416,6 +444,8 @@ class Aplicacion:
         self.crear_boton_seg(filtros_content, "Moda", self.filtro_moda)
         self.crear_boton_seg(filtros_content, "Máximo", self.filtro_maximo)
         self.crear_boton_seg(filtros_content, "Mínimo", self.filtro_minimo)
+        self.crear_boton_seg(filtros_content, "Bilateral", self.filtro_bilateral)
+        
         
         
         # CARD: BORDES
@@ -456,6 +486,13 @@ class Aplicacion:
         # Configurar grid del parent
         parent.grid_rowconfigure(0, weight=1)
         parent.grid_columnconfigure(0, weight=1)
+
+        # MOSTRAR canvas y scrollbar
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar_v.grid(row=0, column=1, sticky="ns")
+        scrollbar_h.grid(row=1, column=0, sticky='ew')
+
+
     
     # Métodos de procesamiento (mantienen la misma lógica)
     def actualizar_kernel(self, event=None):
@@ -601,10 +638,10 @@ class Aplicacion:
                 messagebox.showerror("❌ Error", "No se pudo cargar la imagen secundaria")
             else:
                 messagebox.showinfo("✓ Éxito", "Imagen secundaria cargada correctamente")
+                self.mostrar_imagenes()
     
     def mostrar_imagenes(self):
         # Calcular tamaño dinámico basado en el tamaño de la ventana
-        # Obtener dimensiones disponibles
         self.root.update_idletasks()
         
         # Tamaño máximo para las imágenes (se ajusta al espacio disponible)
@@ -612,16 +649,15 @@ class Aplicacion:
         max_height = 500
         
         # Mostrar imagen original
-        img_orig = cv2.cvtColor(self.imagen_original, cv2.COLOR_BGR2RGB)
-        img_orig = Image.fromarray(img_orig)
+        if self.imagen_original is not None:  # Verificar si la imagen original existe
+            img_orig = cv2.cvtColor(self.imagen_original, cv2.COLOR_BGR2RGB)
+            img_orig = Image.fromarray(img_orig)
+            img_orig.thumbnail((max_width, max_height), Image.LANCZOS)
+            img_orig = ImageTk.PhotoImage(img_orig)
+            self.label_original.configure(image=img_orig)
+            self.label_original.image = img_orig
         
-        # Mantener aspect ratio
-        img_orig.thumbnail((max_width, max_height), Image.LANCZOS)
-        img_orig = ImageTk.PhotoImage(img_orig)
-        self.label_original.configure(image=img_orig)
-        self.label_original.image = img_orig
-        
-        # Mostrar imagen actual
+        # Mostrar imagen procesada
         if self.imagen_actual is not None:
             if len(self.imagen_actual.shape) == 2:
                 img_actual = cv2.cvtColor(self.imagen_actual, cv2.COLOR_GRAY2RGB)
@@ -635,6 +671,15 @@ class Aplicacion:
         img_actual = ImageTk.PhotoImage(img_actual)
         self.label_procesada.configure(image=img_actual)
         self.label_procesada.image = img_actual
+
+        # Mostrar imagen secundaria
+        if self.imagen_secundaria is not None:
+            img_sec = cv2.cvtColor(self.imagen_secundaria, cv2.COLOR_BGR2RGB)
+            img_sec = Image.fromarray(img_sec)
+            img_sec.thumbnail((max_width, max_height), Image.LANCZOS)
+            img_sec = ImageTk.PhotoImage(img_sec)
+            self.label_secundaria.configure(image=img_sec)
+            self.label_secundaria.image = img_sec
     
     def restaurar_imagen(self):
         if self.imagen_original is not None:
@@ -690,6 +735,39 @@ class Aplicacion:
             self.imagen_actual = mc.aplicar_modelo_color(self.imagen_actual, modelo)
             self.actualizar_info(f"Modelo de color cambiado a {modelo}")
             self.mostrar_imagenes()
+
+    # ========================= Aplicar Ruido y Filtros =========================
+
+    def aplicar_ruido_filtro(self):
+        if self.imagen_actual is None:
+            return
+
+        img = self.imagen_actual.copy()
+        opcion = self.filtro_var.get()
+
+        if opcion == "RUIDO_SAL_PIMIENTA":
+            img = rf.ruido_sal_pimienta(img, 0.02)
+
+        elif opcion == "RUIDO_GAUSSIANO":
+            img = rf.ruido_gaussiano(img, sigma=25)
+
+        elif opcion == "PROMEDIADOR":
+            img = rf.filtro_promediador(img, 5)
+
+        elif opcion == "GAUSSIANO":
+            img = rf.filtro_gaussiano(img, 5)
+
+        elif opcion == "MEDIANA":
+            img = rf.filtro_mediana(img, 5)
+
+        elif opcion == "SOBEL":
+            img = cv2.Sobel(img, cv2.CV_64F, 1, 1, ksize=3)
+            img = np.uint8(np.absolute(img))
+
+        elif opcion == "LAPLACIANO":
+            img = rf.filtro_laplaciano(img)
+
+        self.mostrar_imagenes(img)
 
     
     def operacion_logica(self, op):
@@ -998,7 +1076,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.ruido_sal_pimienta(img_input, cantidad)
+            resultado = rf.ruido_sal_pimienta(img_input, cantidad)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Ruido Sal y Pimienta agregado ({cantidad*100:.1f}%)")
             self.mostrar_imagenes()
@@ -1019,7 +1097,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.ruido_gaussiano(img_input, sigma=sigma)
+            resultado = rf.ruido_gaussiano(img_input, sigma=sigma)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Ruido Gaussiano agregado (σ={sigma})")
             self.mostrar_imagenes()
@@ -1041,7 +1119,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.filtro_promediador(img_input, ksize)
+            resultado = rf.filtro_promediador(img_input, ksize)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Filtro Promediador aplicado (kernel={ksize}x{ksize})")
             self.mostrar_imagenes()
@@ -1062,7 +1140,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.filtro_promediador_pesado(img_input, ksize)
+            resultado = rf.filtro_promediador_pesado(img_input, ksize)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Filtro Promediador Pesado aplicado (kernel={ksize}x{ksize})")
             self.mostrar_imagenes()
@@ -1083,7 +1161,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.filtro_gaussiano(img_input, ksize)
+            resultado = rf.filtro_gaussiano(img_input, ksize)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Filtro Gaussiano aplicado (kernel={ksize}x{ksize})")
             self.mostrar_imagenes()
@@ -1098,7 +1176,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.filtro_laplaciano(img_input)
+            resultado = rf.filtro_laplaciano(img_input)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info("Filtro Laplaciano aplicado")
             self.mostrar_imagenes()
@@ -1120,7 +1198,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.filtro_mediana(img_input, ksize)
+            resultado = rf.filtro_mediana(img_input, ksize)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Filtro Mediana aplicado (kernel={ksize}x{ksize})")
             self.mostrar_imagenes()
@@ -1141,7 +1219,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.filtro_moda(img_input, ksize)
+            resultado = rf.filtro_moda(img_input, ksize)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Filtro Moda aplicado (kernel={ksize}x{ksize})")
             self.mostrar_imagenes()
@@ -1163,7 +1241,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
 
-            resultado = filtros.filtro_maximo(img_input, ksize)
+            resultado = rf.filtro_maximo(img_input, ksize)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Filtro Máximo aplicado (kernel={ksize}x{ksize})")
             self.mostrar_imagenes()
@@ -1185,12 +1263,20 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            resultado = filtros.filtro_minimo(img_input, ksize)
+            resultado = rf.filtro_minimo(img_input, ksize)
             self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)
             self.actualizar_info(f"Filtro Mínimo aplicado (kernel={ksize}x{ksize})")
             self.mostrar_imagenes()
         else:
             messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
+    def filtro_bilateral(self):
+        if self.imagen_actual is None:
+            return
+        gris = cv2.cvtColor(self.imagen_actual, cv2.COLOR_BGR2GRAY)
+        resultado = rf.filtro_bilateral(gris)
+        self.imagen_actual = cv2.cvtColor(resultado, cv2.COLOR_GRAY2BGR)  # Actualizar self.imagen_actual
+        self.mostrar_imagenes()  # Llamar sin argumentos
+        
 
         # =========================
         # MORFOLOGIA
