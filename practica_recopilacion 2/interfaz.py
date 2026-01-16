@@ -464,6 +464,7 @@ class Aplicacion:
         self.crear_boton_seg(fourier_content, "FFT (Espectro)", self.fourier_fft)
         self.crear_boton_seg(fourier_content, "Pasa Bajas", self.fourier_low_pass)
         self.crear_boton_seg(fourier_content, "Pasa Altas", self.fourier_high_pass)
+        self.crear_boton_seg(fourier_content, "Mostrar fase fft", self.mostrar_fase_fft)
 
         # Info adicional
         info_frame = tk.Frame(scrollable_frame, bg='#2a2a3e')
@@ -1176,7 +1177,7 @@ class Aplicacion:
             else:
                 img_input = self.imagen_actual
             
-            magnitude = fourier.compute_fft(img_input)
+            magnitude, phase = fourier.compute_fft(img_input)
             # Normalizar para visualización
             magnitude_norm = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
             magnitude_norm = magnitude_norm.astype(np.uint8)
@@ -1188,27 +1189,21 @@ class Aplicacion:
             messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
     
     def fourier_low_pass(self):
-        if self.imagen_actual is not None:
-            radius = simpledialog.askinteger("Filtro Pasa Bajas", 
-                                           "Ingrese el radio del filtro (10-200):",
-                                           minvalue=10, maxvalue=200, initialvalue=30)
-            if radius is None:
-                return
-            
-            if len(self.imagen_actual.shape) == 3:
-                img_input = cv2.cvtColor(self.imagen_actual, cv2.COLOR_BGR2GRAY)
-            else:
-                img_input = self.imagen_actual
-            
-            resultado = fourier.low_pass_filter(img_input, radius)
-            resultado_norm = cv2.normalize(resultado, None, 0, 255, cv2.NORM_MINMAX)
-            resultado_norm = resultado_norm.astype(np.uint8)
-            
-            self.imagen_actual = cv2.cvtColor(resultado_norm, cv2.COLOR_GRAY2BGR)
-            self.actualizar_info(f"Filtro Pasa Bajas aplicado (radio={radius})")
-            self.mostrar_imagenes()
-        else:
-            messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
+        if self.imagen_actual is None: return
+        radius = simpledialog.askinteger("Filtro Pasa Bajas", "Ingrese el radio (10-200):", minvalue=10, maxvalue=200, initialvalue=30)
+        if radius is None: return
+
+        img_input = cv2.cvtColor(self.imagen_actual, cv2.COLOR_BGR2GRAY) \
+                    if len(self.imagen_actual.shape) == 3 else self.imagen_actual
+
+        resultado = fourier.low_pass_filter(img_input, radius)
+        resultado_norm = cv2.normalize(resultado, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        self.imagen_secundaria = cv2.cvtColor(resultado_norm, cv2.COLOR_GRAY2BGR)
+        
+        self.actualizar_info(f"Filtro Pasa Bajas aplicado (radio={radius})")
+        self.mostrar_imagenes()
+
+        
     
     def fourier_high_pass(self):
         if self.imagen_actual is not None:
@@ -1233,6 +1228,14 @@ class Aplicacion:
         else:
             messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
     
+    def mostrar_fase_fft(self):
+        if self.imagen_actual is None: return
+        _, phase = fourier.compute_fft(cv2.cvtColor(self.imagen_actual, cv2.COLOR_BGR2GRAY))
+        phase_norm = cv2.normalize(phase, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        self.imagen_secundaria = cv2.cvtColor(phase_norm, cv2.COLOR_GRAY2BGR)
+        self.mostrar_imagenes()
+        self.actualizar_info("FFT: Fase")
+
     # =========================
     # MÉTODOS DE FILTROS
     # =========================
