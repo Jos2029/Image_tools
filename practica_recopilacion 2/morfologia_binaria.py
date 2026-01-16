@@ -62,13 +62,17 @@ def frontera(imagen, tipo_kernel="cuadrado", tamaño=3):
     return cv2.subtract(img, erosionada)
 
 
-def hit_or_miss(imagen, kernel_hit, kernel_miss):
-    img = binarizar(imagen)
+def hit_or_miss(imagen, kernel_hit=None, kernel_miss=None):
+    if kernel_hit is None:
+        kernel_hit = np.array([[1,1],
+                               [1,1]], dtype=np.uint8)
+    if kernel_miss is None:
+        kernel_miss = np.array([[0,0],
+                                [0,0]], dtype=np.uint8)
 
-    hit = cv2.erode(img, kernel_hit)
-    miss = cv2.erode(cv2.bitwise_not(img), kernel_miss)
+    img_bin = cv2.cvtColor(imagen, cv2.COLOR_BGR2GRAY) if len(imagen.shape)==3 else imagen
+    return cv2.morphologyEx(img_bin, cv2.MORPH_HITMISS, kernel_hit)
 
-    return cv2.bitwise_and(hit, miss)
 
 
 def adelgazamiento(imagen):

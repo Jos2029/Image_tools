@@ -204,6 +204,29 @@ class Aplicacion:
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
+        # Vincular el desplazamiento con la rueda del mouse
+        def _on_mousewheel(event):
+            # Ajustar el desplazamiento según el sistema operativo
+            if event.delta:  # Windows y algunos sistemas
+                canvas.yview_scroll(-1 * (event.delta // 120), "units")
+            else:  # macOS y otros sistemas Unix
+                canvas.yview_scroll(-1 * event.num, "units")
+
+        # En sistemas Unix (macOS y Linux), usa <Button-4> y <Button-5>
+        def _on_mousewheel_unix(event):
+            if event.num == 4:  # Scroll hacia arriba
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:  # Scroll hacia abajo
+                canvas.yview_scroll(1, "units")
+
+        # Vincular eventos de desplazamiento
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))  # Windows
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        canvas.bind_all("<Button-4>", _on_mousewheel_unix)  # Unix (scroll up)
+        canvas.bind_all("<Button-5>", _on_mousewheel_unix)  # Unix (scroll down)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # Configurar grid para las imágenes
         scrollable_frame.grid_rowconfigure(0, weight=1)  # Fila para la imagen original
@@ -243,8 +266,6 @@ class Aplicacion:
 
         self.label_secundaria = tk.Label(sec_card, bg='#1a1a2a', anchor='center')
         self.label_secundaria.pack(fill=tk.NONE, expand=True, padx=15, pady=(0, 15))
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
 
     def crear_panel_configuracion(self, parent):
@@ -259,7 +280,21 @@ class Aplicacion:
         
         canvas.create_window((0, 0), window=scrollable_frame, anchor='nw')
         canvas.configure(yscrollcommand=scrollbar_v.set, xscrollcommand=scrollbar_h.set)
+
+        # Vincular el desplazamiento con la rueda del mouse
+        def _on_mousewheel(event):
+            canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        def _on_mousewheel_unix(event):
+            if event.num == 4:  # Scroll hacia arriba
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:  # Scroll hacia abajo
+                canvas.yview_scroll(1, "units")
         
+        # Vincular eventos de desplazamiento
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)  # Windows
+        canvas.bind_all("<Button-4>", _on_mousewheel_unix)  # Unix (scroll up)
+        canvas.bind_all("<Button-5>", _on_mousewheel_unix)  # Unix (scroll down)
+            
         tk.Label(scrollable_frame, text="⚙️ Configuración", 
                 font=('Segoe UI', 14, 'bold'),
                 fg='#00d4ff', bg='#1e1e2e').pack(pady=(0, 15))
@@ -391,6 +426,14 @@ class Aplicacion:
         self.crear_boton_seg(seg_content, "Otsu", self.seg_otsu)
         self.crear_boton_seg(seg_content, "Media", self.seg_media)
         self.crear_boton_seg(seg_content, "Kapur", self.seg_kapur)
+        self.crear_boton_seg(seg_content, "Comparar Histogramas", self.comparar_histogramas)
+
+        # =========================
+        # BOTONES DE FIGURAS
+        # =========================
+        self.crear_boton_seg(seg_content, "Detectar Figuras", self.detectar_figuras)
+        self.crear_boton_seg(seg_content, "Comparar Segmentaciones", self.comparar_segmentaciones)
+
         
         tk.Label(seg_content, text="Ajuste de Brillo", 
                 fg='#ffffff', bg='#2a2a3e', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W, pady=(15, 5))
@@ -957,6 +1000,114 @@ class Aplicacion:
             self.mostrar_imagenes()
         else:
             messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
+
+    def mostrar_histograma(self):
+        if self.imagen_actual is not None:
+            seg.histograma(self.imagen_actual, titulo="Histograma de la imagen actual")
+        else:
+            messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
+
+    def comparar_histogramas(self):
+        if self.imagen_actual is not None and self.imagen_original is not None:
+            seg.comparacion_histogramas(self.imagen_original, self.imagen_actual)
+        else:
+            messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen y tener una original para comparar")
+
+    def detectar_figuras(self):
+        """
+        Detecta figuras geométricas en la imagen binarizada actual,
+        dibuja los contornos y etiquetas, y actualiza la imagen y la info.
+        """
+        if self.imagen_actual is None:
+            messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
+            return
+
+        # Copiar la imagen actual
+        img = self.imagen_actual.copy()
+
+        # Asegurarse que esté en escala de grises
+        if len(img.shape) == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Encontrar contornos
+        contornos, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Preparar imagen de resultado en color para dibujar
+        resultado = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+        # Diccionario de conteo de figuras
+        conteo = {
+            "Triangulo": 0,
+            "Cuadrado": 0,
+            "Rectangulo": 0,
+            "Pentagono": 0,
+            "Hexagono": 0,
+            "Heptagono": 0,
+            "Octagono": 0,
+            "Circulo": 0,
+            "Elipse": 0,
+            "Estrella": 0
+        }
+
+        for cnt in contornos:
+            area = cv2.contourArea(cnt)
+            if area < 300:  # Ignorar contornos muy pequeños
+                continue
+
+            peri = cv2.arcLength(cnt, True)
+            epsilon = 0.03 * peri
+            aprox = cv2.approxPolyDP(cnt, epsilon, True)
+            v = len(aprox)
+            figura = None
+
+            # Identificación de figuras
+            if v == 3:
+                figura = "Triangulo"
+            elif v == 4:
+                x, y, w, h = cv2.boundingRect(aprox)
+                ar = w / h
+                figura = "Cuadrado" if 0.9 <= ar <= 1.1 else "Rectangulo"
+            elif v == 5:
+                figura = "Pentagono"
+            elif v == 6:
+                figura = "Hexagono"
+            elif v == 7:
+                figura = "Heptagono"
+            elif v == 8:
+                figura = "Octagono"
+            elif v > 8:
+                circularidad = 4 * np.pi * area / (peri * peri)
+                if circularidad > 0.8:
+                    figura = "Circulo"
+                elif circularidad > 0.65:
+                    figura = "Elipse"
+                else:
+                    figura = "Estrella"
+
+            # Dibujar contorno y etiqueta si se identificó
+            if figura and figura in conteo:
+                conteo[figura] += 1
+                cv2.drawContours(resultado, [aprox], -1, (255,255,255), 2)  # Contorno blanco
+                cv2.putText(resultado, figura, tuple(aprox[0][0]),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)   # Texto verde
+
+        # Actualizar imagen actual y mostrar información
+        self.imagen_actual = resultado
+        self.actualizar_info(f"Figuras detectadas: {conteo}")
+        self.mostrar_imagenes()
+
+
+
+    def comparar_segmentaciones(self):
+        if self.imagen_actual is not None:
+            segs = seg.comparar_segmentaciones(self.imagen_actual)
+            self.actualizar_info("Comparación de segmentaciones (Otsu, Kapur, Media)")
+            # opcional: podrías guardar o mostrar alguna de las segmentaciones
+        else:
+            messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
+
+
+
 
     
     # =========================
