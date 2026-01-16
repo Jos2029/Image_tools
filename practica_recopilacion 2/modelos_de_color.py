@@ -182,13 +182,13 @@ def aplicar_modelo_color(imagen, modelo):
         mostrar_canales_rgb(imagen)
         return imagen
 
-    elif modelo == "PSEUDOCOLOR_PASTEL":
+    elif modelo == "PSEUDOCOLOR PASTEL":
         return pseudocolor_pastel(imagen)
     
-    elif modelo == "PSEUDOCOLOR_TIERRA":
+    elif modelo == "PSEUDOCOLOR TIERRA":
         return pseudocolor_tierra(imagen)
     
-    elif modelo == "PSEUDOCOLOR_FRIOS":
+    elif modelo == "PSEUDOCOLOR FRIOS":
         return pseudocolor_frios(imagen)
 
 

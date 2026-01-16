@@ -396,27 +396,10 @@ class Aplicacion:
                                font=('Segoe UI', 9, 'bold'))  # Bold para mejor visibilidad
             rb.pack(anchor=tk.W, padx=5, pady=2)
         
-        
-        
-        # CARD: Análisis de Regiones
-        region_content = self.crear_card(scrollable_frame, "🔍 Análisis")
-        etiq_content = self.crear_card(scrollable_frame, "🔖 Etiquetado")
-
-        self.crear_boton_tool(region_content, "▸ Extracción por Umbral", self.extraccion_umbral)
-        self.crear_boton_tool(region_content, "▸ Etiquetar Regiones", self.etiquetar_regiones)
-        self.crear_boton_tool(etiq_content,"Reconocer Patrón", self.etiquetar_patron)
-       
-
-       
-
         canvas.grid(row=0, column=0, sticky='nsew')
         scrollbar_v.grid(row=0, column=1, sticky='ns')
         scrollbar_h.grid(row=1, column=0, sticky='ew')
 
-
-        
-
-        self.crear_boton_tool(etiq_content, "📂 Cargar Patrón", self.cargar_patron)
         # CARD: Segmentación
         seg_content = self.crear_card(scrollable_frame, "✂️ Segmentación")
         
