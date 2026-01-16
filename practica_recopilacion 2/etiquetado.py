@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 def extraer_regiones_umbral(imagen, umbral_min, umbral_max):
     gris = cv2.cvtColor(imagen, cv2.COLOR_BGR2GRAY)
@@ -68,3 +69,35 @@ def etiquetar_patron(imagen_binaria, patron_binario, umbral_similitud=0.2):
             cv2.drawContours(salida, [cnt], -1, (0, 255, 0), 2)
 
     return salida
+
+
+def calcular_histograma(imagen):
+    """
+    Calcula el histograma de una imagen en escala de grises
+    """
+    if len(imagen.shape) == 3:
+        gris = cv2.cvtColor(imagen, cv2.COLOR_BGR2GRAY)
+    else:
+        gris = imagen.copy()
+
+    histograma = cv2.calcHist(
+        [gris],        # imagen
+        [0],           # canal
+        None,           # sin máscara
+        [256],          # bins
+        [0, 256]        # rango
+    )
+
+    return histograma
+
+
+def mostrar_histograma(imagen):
+    hist = calcular_histograma(imagen)
+
+    plt.figure()
+    plt.title("Histograma de la imagen")
+    plt.xlabel("Nivel de intensidad")
+    plt.ylabel("Número de píxeles")
+    plt.plot(hist)
+    plt.xlim([0, 256])
+    plt.show()

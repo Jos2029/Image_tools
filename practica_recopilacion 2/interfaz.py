@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import modelos_de_color as mc
 import operaciones_logicas as ol
@@ -39,16 +40,10 @@ class Aplicacion:
             "Erosión", "Dilatación", "Apertura",
             "Cierre", "Gradiente"
         ]
-        
-
-
         self.configurar_estilos()
         self.crear_interfaz()
 
       
-
-       
-    
     def configurar_estilos(self):
         style = ttk.Style()
         style.theme_use('clam')
@@ -184,28 +179,6 @@ class Aplicacion:
         btn.bind('<Leave>', lambda e: e.widget.config(bg='#3a3a5e'))
         return btn
     
-    def crear_panel_herramientas(self, parent):
-        canvas = tk.Canvas(parent, bg='#1e1e2e', highlightthickness=0)
-        scrollbar = tk.Scrollbar(parent, orient='vertical', command=canvas.yview)
-
-        scrollable_frame = tk.Frame(canvas, bg='#1e1e2e')
-
-        canvas.configure(yscrollcommand=scrollbar.set)
-                
-        scrollable_frame.bind('<Configure>', 
-                             lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor='nw')
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        
-
-    
-
-        
-
-
-
     def cargar_patron(self):
         ruta = filedialog.askopenfilename(
             filetypes=[("Imágenes", "*.jpg *.jpeg *.png *.bmp")]
@@ -372,16 +345,17 @@ class Aplicacion:
         self.crear_boton_tool(color_content, "▸ Escala de Grises", self.grises)
         self.crear_boton_tool(color_content, "▸ Binarizar (128)", self.binarizar)
         self.crear_boton_tool(color_content, "▸ Binarizar Custom", self.binarizar_con_umbral)
+        self.crear_boton_tool(color_content,"Calcular Histograma", self.mostrar_histograma)
         
         tk.Label(color_content, text="Espacio de color:", 
-                fg='#000000', bg='#2a2a3e', 
+                fg='#ffffff', bg='#2a2a3e', 
                 font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W, pady=(10, 3))
         
         self.modelo_var = tk.StringVar(value="RGB")
-        for modelo in ["RGB", "RGB_CANALES", "CMYK", "HSV", "PSEUDOCOLOR_PASTEL", "PSEUDOCOLOR_TIERRA", "PSEUDOCOLOR_FRIOS"]:
+        for modelo in ["RGB", "RGB_CANALES", "CMYK", "HSV", "PSEUDOCOLOR PASTEL", "PSEUDOCOLOR TIERRA", "PSEUDOCOLOR FRIOS"]:
             rb = tk.Radiobutton(color_content, text=modelo, variable=self.modelo_var,
                                value=modelo, command=self.cambiar_modelo_color,
-                               bg='#2a2a3e', fg=self.colores['text_color'], 
+                               bg='#2a2a3e', fg='#ffffff', 
                                selectcolor='#3a3a4e',
                                activebackground='#2a2a3e', activeforeground='#00d4ff',
                                font=('Segoe UI', 9, 'bold'))  # Bold para mejor visibilidad
@@ -398,6 +372,8 @@ class Aplicacion:
         self.crear_boton_tool(etiq_content,"Reconocer Patrón", self.etiquetar_patron)
        
 
+       
+
         canvas.grid(row=0, column=0, sticky='nsew')
         scrollbar_v.grid(row=0, column=1, sticky='ns')
         scrollbar_h.grid(row=1, column=0, sticky='ew')
@@ -410,14 +386,14 @@ class Aplicacion:
         seg_content = self.crear_card(scrollable_frame, "✂️ Segmentación")
         
         tk.Label(seg_content, text="Métodos de Umbralización", 
-                fg='#000000', bg='#2a2a3e', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+                fg='#ffffff', bg='#2a2a3e', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W, pady=(5, 5))
         
         self.crear_boton_seg(seg_content, "Otsu", self.seg_otsu)
         self.crear_boton_seg(seg_content, "Media", self.seg_media)
         self.crear_boton_seg(seg_content, "Kapur", self.seg_kapur)
         
         tk.Label(seg_content, text="Ajuste de Brillo", 
-                fg='#000000', bg='#2a2a3e', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W, pady=(15, 5))
+                fg='#ffffff', bg='#2a2a3e', font=('Segoe UI', 9, 'bold')).pack(anchor=tk.W, pady=(15, 5))
         
         self.crear_boton_seg(seg_content, "Ecualización Uniforme", self.seg_eq_uniforme)
         self.crear_boton_seg(seg_content, "Ecualización Exponencial", self.seg_eq_exponencial)
@@ -795,7 +771,9 @@ class Aplicacion:
                 self.actualizar_info(f"Operación {op} aplicada")
             
             self.mostrar_imagenes()
-    
+    # =========================
+    # MÉTODOS DE ANÁLISIS DE REGIONES
+    # =========================
     def extraccion_umbral(self):
         if self.imagen_actual is not None:
             umbral = simpledialog.askinteger("Umbral", "Ingrese el valor de umbral (0-255)", 
@@ -805,7 +783,71 @@ class Aplicacion:
                 self.imagen_actual = cv2.cvtColor(binaria, cv2.COLOR_GRAY2BGR)
                 self.actualizar_info(f"Extracción por umbral ({umbral})")
                 self.mostrar_imagenes()
-    
+    def mostrar_histograma(self):
+        if self.imagen_actual is None:
+            messagebox.showwarning("⚠️ Advertencia", "Debe cargar una imagen primero")
+            return
+
+        # Escala de grises
+        if len(self.imagen_actual.shape) == 3:
+            gris = cv2.cvtColor(self.imagen_actual, cv2.COLOR_BGR2GRAY)
+        else:
+            gris = self.imagen_actual
+
+        # Histograma
+        hist = cv2.calcHist([gris], [0], None, [256], [0, 256])
+        hist_norm = hist / hist.sum()  # Normalizado
+
+        niveles = np.arange(256)
+
+        # === PROPIEDADES ===
+        media = np.sum(niveles * hist_norm)
+        varianza = np.sum(((niveles - media) ** 2) * hist_norm)
+        desviacion = np.sqrt(varianza)
+        entropia = -np.sum(hist_norm * np.log2(hist_norm + 1e-10))
+        energia = np.sum(hist_norm ** 2)
+
+        # Mostrar histograma
+        plt.figure("Histograma de la imagen")
+        plt.plot(hist, color='black')
+        plt.title("Histograma de niveles de gris")
+        plt.xlabel("Nivel de intensidad")
+        plt.ylabel("Frecuencia")
+        plt.grid(True)
+
+        texto = (
+            f"Media: {media:.2f}\n"
+            f"Varianza: {varianza:.2f}\n"
+            f"Desv. Std: {desviacion:.2f}\n"
+            f"Entropía: {entropia:.2f}\n"
+            f"Energía: {energia:.4f}"
+        )
+
+        plt.text(
+            170, max(hist)*0.7,
+            texto,
+            fontsize=9,
+            bbox=dict(facecolor='white', alpha=0.8)
+        )
+
+        plt.show()
+
+
+        # Mostrar propiedades en el panel de info
+        self.info_text.config(state='normal')
+        self.info_text.delete('1.0', tk.END)
+        self.info_text.insert(
+            '1.0',
+            f"✓ Propiedades del histograma\n\n"
+            f"Media: {media:.2f}\n"
+            f"Varianza: {varianza:.2f}\n"
+            f"Desviación estándar: {desviacion:.2f}\n"
+            f"Entropía: {entropia:.2f}\n"
+            f"Energía: {energia:.4f}"
+        )
+        self.info_text.config(state='disabled')
+
+
     def etiquetar_regiones(self):
         if self.imagen_actual is not None:
             binaria = et.extraer_regiones_umbral(self.imagen_actual, 128, 255)
